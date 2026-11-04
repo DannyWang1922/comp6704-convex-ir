@@ -1,0 +1,19 @@
+# Solver and sample-size comparisons (steps 3 and 4 of scripts/reproduce.sh).
+# Reads the learning rates selected with configs/adam-rates.toml.
+calibration_run = "artifacts/runs/adam-rates"
+splits = "artifacts/data/splits.json"
+inherited_runs = ["artifacts/runs/adam-rates"]
+adam_extension_policy = "upper03"
+threads = 1
+e1_seconds = 1800.0
+e3_seconds = 900.0
+reference_seconds = 120.0
+
+[solver]
+objective_certificate = 1e-9
+parameter_certificate = 1e-3
+max_iterations = 20000
+max_seconds = 60.0
+gd_step_mode = "expand"
+gd_armijo = 0.5
+armijo = 0.0001

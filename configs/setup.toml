@@ -1,0 +1,22 @@
+# Setup defaults only. No pilot experiment or hyperparameter search is enabled.
+[paths]
+artifacts = "artifacts"
+
+[model]
+id = "sentence-transformers/all-MiniLM-L6-v2"
+revision = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+max_seq_length = 256
+batch_size = 32
+device = "cpu"
+threads = 4
+
+[data]
+url = "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/scifact.zip"
+validation_fraction = 0.2
+split_seed = 42
+
+[pairs]
+seed = 42
+random_negatives = 4
+hard_negatives = 4
+temperature = 0.1

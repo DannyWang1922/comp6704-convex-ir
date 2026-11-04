@@ -1,0 +1,20 @@
+# Adam learning-rate selection on the seed 42 training triples (step 2 of scripts/reproduce.sh).
+setup_config = "configs/setup.toml"
+require_clean_tracked = true
+adam_policy = "recalibrate"
+threads = 1
+diagnostic_seeds = [42, 43, 44]
+lambdas = [0.01, 0.001, 0.0001, 0.00001]
+adam_extension_policy = "upper03"
+adam_rates = [0.003, 0.01, 0.03]
+total_solver_seconds = 1800.0
+reference_seconds = 120.0
+
+[solver]
+objective_certificate = 1e-9
+parameter_certificate = 1e-3
+max_iterations = 20000
+max_seconds = 60.0
+gd_step_mode = "expand"
+gd_armijo = 0.5
+armijo = 0.0001

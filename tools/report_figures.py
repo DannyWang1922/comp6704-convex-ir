@@ -55,7 +55,7 @@ def configure():
         'axes.titlesize': 8, 'axes.labelsize': 8, 'legend.fontsize': 8,
         'xtick.labelsize': 8, 'ytick.labelsize': 8, 'pdf.fonttype': 42,
         'ps.fonttype': 42, 'axes.spines.top': False, 'axes.spines.right': False,
-        'savefig.facecolor': 'white', 'lines.linewidth': 1.2})
+        'savefig.facecolor': 'white', 'lines.linewidth': 1.2, 'lines.markersize': 4})
 
 
 def finish(fig, output, stem):
@@ -65,35 +65,34 @@ def finish(fig, output, stem):
 
 
 def fig1(run, calibration, out):
-    fig, axes = plt.subplots(4, 2, figsize=(5.5, 5.1), layout='constrained')
+    fig, axes = plt.subplots(4, 2, figsize=(5.5, 5.1), layout='constrained', sharey='row')
     for row, lam in enumerate(LAMBDAS):
         for method in METHODS + ['unit']:
             path = calibration / f'lambda-{lam:g}' / 'gd-unit.json' if method == 'unit' else target(run, 42, lam) / f'{method}-trace.json'
             h = read(path)['history']
             y = np.maximum([x['certificate_B'] for x in h], np.finfo(float).tiny)
+            updates = np.array([x['iteration'] for x in h])
+            seconds = np.array([x['seconds'] * 1000 for x in h])
             color, style = STYLES[method]
-            axes[row, 0].semilogy([x['iteration'] for x in h], y, color=color, ls=style, label=LABELS[method])
-            axes[row, 1].semilogy([x['seconds'] * 1000 for x in h], y, color=color, ls=style, label=LABELS[method])
+            # All methods share the starting point, so the left column starts at update 1.
+            axes[row, 0].loglog(updates[updates > 0], y[updates > 0], color=color, ls=style, label=LABELS[method])
+            axes[row, 1].loglog(seconds[seconds > 0], y[seconds > 0], color=color, ls=style, label=LABELS[method])
         for col in range(2):
             ax = axes[row, col]
-            ax.axhline(min(1e-9, .5e-6*lam), color='0.6', lw=.8, ls=(0, (1, 3)))
-            ax.set_title(r'$\lambda=10^{%d}$' % int(round(np.log10(lam))))
-            if col == 0:
-                ax.set_ylabel(r'$B(a)$')
+            ax.axhline(min(1e-9, .5e-6*lam), color='0.6', lw=.8, ls=(0, (1, 3)), label='Stopping threshold')
+            ax.set_ylim(1e-16, None)
             # Label every fifth decade so the start level and threshold can be read.
             ax.yaxis.set_major_locator(matplotlib.ticker.FixedLocator([10.0**k for k in range(-30, 6, 5)]))
             ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
             ax.grid(axis='y', alpha=.18)
-        axes[row, 0].set_xscale('symlog', linthresh=1)
-        axes[row, 0].set_xlim(left=0)
-        if row == 3:
-            axes[row, 0].set_xlabel('Updates (symmetric log)')
-        axes[row, 1].set_xscale('symlog', linthresh=1)
-        axes[row, 1].set_xlim(left=0)
-        if row == 3:
-            axes[row, 1].set_xlabel('Trace time (ms, symmetric log)')
+            ax.text(.97, .08, r'$\lambda=10^{%d}$' % int(round(np.log10(lam))), transform=ax.transAxes, ha='right', va='bottom')
+        axes[row, 0].set_ylabel(r'$B(a)$')
+    axes[0, 0].set_title('(a) Certificate by update')
+    axes[0, 1].set_title('(b) Certificate by time')
+    axes[3, 0].set_xlabel('Updates')
+    axes[3, 1].set_xlabel('Trace time (ms)')
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='outside upper center', ncol=4, frameon=False)
+    fig.legend(handles, labels, loc='outside upper center', ncol=5, frameon=False, columnspacing=1.2, handlelength=1.8)
     finish(fig, out, 'fig1-convergence')
 
 
@@ -155,6 +154,7 @@ def fig2(run, groups, out, data):
         axes[2].bar([LABELS[x] for x in METHODS], heights, bottom=bottom, label=label, color=shade, edgecolor='black', hatch=hatch, linewidth=.6)
         bottom += heights
     axes[2].set(ylabel='Cost proxy (ms)', title=r'(c) Cost proxy, seed 42, $\lambda=10^{-3}$')
+    axes[2].set_ylim(0, bottom.max() * 1.1)
     axes[2].legend(loc='upper left')
     data['spectra'] = spectra
     data['cost_proxy'] = {'records': proxy, 'microbenchmark_medians_seconds': {k:v['median_seconds'] for k,v in mb.items()},
@@ -217,28 +217,28 @@ def fig4(validation, test, posthoc, out, data):
         rows = [x for x in records if x['metric']==metric]
         x = [r['regularization'] for r in rows]
         low = [r['baseline_shifted_difference_ci95'][0] for r in rows];high=[r['baseline_shifted_difference_ci95'][1] for r in rows]
-        ax.fill_between(x, low, high, color=PALETTE['blue'], alpha=.18, linewidth=0, label='Baseline + paired 95% CI')
+        ax.fill_between(x, low, high, color=PALETTE['blue'], alpha=.18, linewidth=0, label='Identity + paired 95% CI')
         ax.plot(x, [r['mean'] for r in rows], 'o-', color=PALETTE['blue'], label='Mean across seeds')
-        ax.axhline(rows[0]['baseline'], ls='--', color='0.4', label='Identity baseline')
+        ax.axhline(rows[0]['baseline'], ls='--', color='0.4', label='Identity')
         ax.set(xscale='log', xlabel=r'$\lambda$', ylabel=metric, title=title)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc='outside upper center', ncol=2, frameon=False)
     rows = [next(x for x in posthoc['systems'] if x['seed']==42 and x['regularization']==lam) for lam in LAMBDAS]
     ax = axes[1,0]
     ax.plot(LAMBDAS, [x['train_metrics']['nDCG@10'] for x in rows], 'o-', color=PALETTE['blue'], label='nDCG@10')
-    ax.axhline(posthoc['baseline']['train_metrics']['nDCG@10'], color='0.5', ls='--', label='Identity nDCG@10')
-    ax.plot(LAMBDAS, [x['hard_pair_accuracy'] for x in rows], 's:', color=PALETTE['vermillion'], label='Hard-pair acc.')
-    ax.set(xscale='log', xlabel=r'$\lambda$', ylabel='Metric value', title='(c) Post-hoc training, seed 42')
+    ax.axhline(posthoc['baseline']['train_metrics']['nDCG@10'], color='0.5', ls='--', label='Identity (nDCG@10)')
+    ax.plot(LAMBDAS, [x['hard_pair_accuracy'] for x in rows], 's:', color=PALETTE['vermillion'], label='Hard-pair accuracy')
+    ax.set(xscale='log', xlabel=r'$\lambda$', ylabel='Value on training queries', title='(c) Post-hoc training, seed 42')
     ax.set_ylim(0, 1)
-    ax.legend(fontsize=8, loc='upper left', bbox_to_anchor=(0, -.38), ncol=2, columnspacing=.8, handlelength=1.5, labelspacing=.3, borderaxespad=0, frameon=False)
+    ax.legend(loc='lower right', handlelength=1.8, labelspacing=.3, frameon=False)
     ax = axes[1,1]
     comps = test['comparisons']
     for i, row in enumerate(comps):
-        lo,hi=row['ci95'];ax.plot([lo,hi],[i,i], color=PALETTE['blue'], lw=2)
-        ax.plot(row['mean'],i,'o',color=PALETTE['blue'])
+        lo,hi=row['ci95']
+        ax.errorbar(row['mean'], i, xerr=[[row['mean']-lo],[hi-row['mean']]], fmt='o', color=PALETTE['blue'], capsize=3)
     ax.axvline(0,color='0.6',ls='--')
     ax.set_yticks(range(len(comps)),[x['metric'] for x in comps])
-    ax.set(xlabel='Paired difference vs identity', title=r'(d) Secondary test, $\lambda=10^{-3}$')
+    ax.set(xlabel='Difference from identity', title=r'(d) Secondary test, $\lambda=10^{-3}$')
     ax.margins(y=.5)
     data['validation'] = records
     data['posthoc_figure_scope'] = 'seed 42 only, frozen parameters; reconstructed binary training relevance; descriptive post-hoc'
